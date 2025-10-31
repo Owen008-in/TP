@@ -1,0 +1,33 @@
+pipeline {
+  agent any
+  environment {
+    ANSIBLE_HOST_KEY_CHECKING = 'False'
+  }
+  triggers {
+    pollSCM('@hourly') // filet de sécurité si webhook HS
+  }
+  options { timestamps() }
+  stages {
+    stage('Checkout') { steps { checkout scm } }
+    stage('Setup Ansible deps') {
+      steps {
+        sh '''
+          which ansible || (python3 -m pip install --user "ansible==9.*" "ansible-core==2.16.*")
+          ansible-galaxy collection install community.docker
+        '''
+      }
+    }
+    stage('Deploy with Ansible') {
+      steps {
+        sh '''
+          cd ansible
+          BUILD_TAG="$BUILD_TAG" ansible-playbook -i inventory.ini playbook.yml --become
+        '''
+      }
+    }
+  }
+  post {
+    success { echo 'Deploiement OK 🎉' }
+    failure { echo 'Echec du pipeline ❌' }
+  }
+}
